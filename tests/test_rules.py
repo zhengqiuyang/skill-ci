@@ -158,6 +158,44 @@ class DuplicateRuleTests(RuleTestBase):
         self.assertIn("Jaccard 0.73", next(f.message for f in findings if f.rule_id == "DUP003"))
 
 
+class W3RegressionNetTests(RuleTestBase):
+    """W3.0 regression net: pins that must hold both before and after the
+    parser learns one-level nested metadata mappings."""
+
+    def test_empty_metadata_with_stray_line_is_fm001(self):
+        _, findings = self.lint_selection("empty-metadata-bad")
+        self.assertEqual(self.rules_for(findings, "empty-metadata-bad"), {"FM001"})
+        self.assertEqual([f.line for f in findings], [5])
+        self.assertTrue(all(f.severity == "error" for f in findings))
+
+    def test_empty_quoted_description_is_fm006(self):
+        _, findings = self.lint_selection("quoted-desc-empty")
+        self.assertEqual(self.rules_for(findings, "quoted-desc-empty"), {"FM006"})
+        self.assertEqual([f.line for f in findings], [3])
+
+    def test_name_dir_mismatch_outside_template_dirs_keeps_warning(self):
+        _, findings = self.lint_selection("wrong-dir")
+        fm004 = [f for f in findings if f.rule_id == "FM004"]
+        self.assertEqual([f.severity for f in fm004], ["warning"])
+
+    def test_non_placeholder_secret_keeps_warning(self):
+        tmp = tempfile.mkdtemp(prefix="skillci-sec2net-")
+        self.addCleanup(shutil.rmtree, tmp, True)
+        skill_dir = Path(tmp) / "sec-real"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text(
+            "---\n"
+            "name: sec-real\n"
+            "description: Rotates database credentials. Use when a secret leaks.\n"
+            "---\n"
+            'password = "S3cur3-P@ss-2024!"\n',
+            encoding="utf-8",
+        )
+        _, findings = lint_path(Path(tmp))
+        sec002 = [f for f in findings if f.rule_id == "SEC002"]
+        self.assertEqual([f.severity for f in sec002], ["warning"])
+
+
 class StructureTests(RuleTestBase):
     def test_empty_target_reports_struct001(self):
         tmp = tempfile.mkdtemp(prefix="skillci-empty-")

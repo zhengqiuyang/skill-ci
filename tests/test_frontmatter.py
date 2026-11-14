@@ -91,5 +91,54 @@ class FrontmatterParserTest(unittest.TestCase):
         self.assertIsNone(doc.description)
 
 
+class W3RegressionParserTest(unittest.TestCase):
+    """W3.0 regression net: W1/W2 parse behavior that must survive the
+    one-level nested-mapping change unchanged."""
+
+    def test_literal_block_scalar_folds_continuation_lines(self):
+        text = (
+            "---\n"
+            "name: pipe-skill\n"
+            "description: |\n"
+            "  Line one.\n"
+            "  Line two.\n"
+            "---\n"
+            "body\n"
+        )
+        doc = parse_skill_text(text)
+        self.assertEqual(doc.description, "Line one. Line two.")
+        self.assertEqual(doc.parse_notes, [])
+
+    def test_block_list_resumes_top_level_keys_after_dedent(self):
+        text = (
+            "---\n"
+            "name: list-resume\n"
+            "allowed-tools:\n"
+            "  - Read\n"
+            "  - Bash\n"
+            "license: MIT\n"
+            "description: Resumes top-level keys after a block list. Use when lists end.\n"
+            "---\n"
+            "body\n"
+        )
+        doc = parse_skill_text(text)
+        self.assertEqual(doc.frontmatter["allowed-tools"], ["Read", "Bash"])
+        self.assertEqual(doc.frontmatter["license"], "MIT")
+        self.assertEqual(doc.parse_notes, [])
+
+    def test_indented_garbage_under_empty_key_is_note(self):
+        text = (
+            "---\n"
+            "name: empty-key-garbage\n"
+            "metadata:\n"
+            "  just some text without a colon\n"
+            "---\n"
+            "body\n"
+        )
+        doc = parse_skill_text(text)
+        self.assertEqual(len(doc.parse_notes), 1)
+        self.assertEqual(doc.parse_notes[0][0], 4)  # file line of the stray text
+
+
 if __name__ == "__main__":
     unittest.main()
