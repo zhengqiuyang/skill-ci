@@ -1,131 +1,132 @@
 # skill-ci
 
-Static CI tooling for agent-skill (SKILL.md) repositories.
-Zero runtime dependencies (Python standard library only, >= 3.11), no pip
-install required to run, no network at runtime, no LLM calls.
+Static CI for agent skills.
 
-> **Status: experimental alpha.** Static text checks only — this is not a
-> runtime test of a skill. The repository is a work artifact, not a
-> maintained product: no outreach, no support commitment. Development
-> reports are intentionally not published; the README and the rule catalog
-> are the public scope.
+`skill-lint` checks a `SKILL.md` repository for spec violations, oversized
+skills, duplicate or conflicting descriptions, and risky patterns.
+`skill-test` measures whether your descriptions actually trigger on the
+prompts they should.
 
-## What's inside
+Zero runtime dependencies (Python 3.11+ standard library only). No network,
+no LLM calls, no code execution. Runs from a checkout and ships as a GitHub
+Action.
 
-| tool | what it does |
-| --- | --- |
-| `skill-lint` | static linter for SKILL.md: frontmatter (FM00x), description quality (DQ00x), token budget (TK001/TK002), cross-skill duplicates (DUP00x), security hints (SEC00x), structure (STRUCT00x) — 22 rules |
-| `skill-test` | trigger-prediction evaluation: given a labeled `prompts.jsonl` suite, predicts which skill each prompt would trigger (deterministic BM25 + fallback) and reports precision/recall/FP/FN with per-term evidence |
+## Quick start
 
-## Running without installing (bin launchers)
-
-The launchers locate the repository root relative to their own location and
-put `src/` on `PYTHONPATH` — no pip, no virtualenv, nothing written outside
-the report you ask for.
+POSIX / Git Bash:
 
 ```sh
-# POSIX sh / Git Bash (works from any working directory)
-bin/skill-lint <target-repo> [--format json|markdown] [--out FILE] [--all-instances]
-bin/skill-test <skill-repo> --suite prompts.jsonl [--format json|markdown] [--out FILE] [--threshold X]
+bin/skill-lint examples/skills
 ```
+
+Windows:
 
 ```bat
-:: Windows cmd.exe
-bin\skill-lint.cmd <target-repo> --format json
-bin\skill-test.cmd <skill-repo> --suite prompts.jsonl
+bin\skill-lint.cmd examples\skills
 ```
 
-Equivalent without the launchers:
+Expected: `Skills scanned: 1`, `0 error(s)`, exit code 0.
+
+Point it at your own skill repository:
 
 ```sh
-PYTHONPATH=src python -m skill_ci <target-repo>
-PYTHONPATH=src python -m skill_ci test <skill-repo> --suite prompts.jsonl
+bin/skill-lint /path/to/your/skills
+bin/skill-lint /path/to/your/skills --format json --out report.json
 ```
 
-After a normal `pip install .` the console scripts `skill-lint` /
-`skill-test` are also available — but the repo is usable without any
-installation.
+Exit codes: `0` = no error findings, `1` = at least one error finding,
+`2` = usage/IO error.
 
-## GitHub Action
+## Install
 
-`.github/workflows/skill-ci.yml` has three entry points:
+No install is needed. The `bin/` launchers locate the repository, put `src/`
+on `PYTHONPATH`, and run the tool:
 
-- **`example-gate` (blocking)** — lints `examples/skills`; a real error
-  fails the job. This is the gate to copy into your own repository.
-- **`fixture-smoke` (non-blocking)** — lints the repo's own
-  `tests/fixtures` tree, which intentionally contains malformed skills.
-- **`workflow_call`** — reusable with a `target` input:
+| POSIX / Git Bash | Windows cmd.exe |
+| --- | --- |
+| `bin/skill-lint <repo>` | `bin\skill-lint.cmd <repo>` |
+| `bin/skill-test <repo> --suite prompts.jsonl` | `bin\skill-test.cmd <repo> --suite prompts.jsonl` |
 
-```yaml
-- uses: <owner>/skill-ci/.github/workflows/skill-ci.yml@main
-  with:
-    target: .
-```
-
-Local validation is structural only; full schema/action validation
-happens when GitHub first parses the workflow.
-
-## skill-lint
+Or install the console scripts:
 
 ```sh
-bin/skill-lint ./some-skill-repo            # markdown, grouped by rule
-bin/skill-lint ./some-skill-repo --format json
-bin/skill-lint ./some-skill-repo --all-instances   # flat per-instance table (W1 shape)
+pip install .
+skill-lint examples/skills
+skill-test tests/fixtures/skilltest-repo --suite tests/fixtures/skilltest-suite/prompts.jsonl
 ```
 
-- Default markdown groups findings **by rule**: severity, instance count,
-  meaning, fix hint, affected `file:line` list. `--all-instances` restores
-  the flat one-row-per-finding table.
-- JSON output is always instance-level.
-- Exit codes: `0` scan finished without error-severity findings; `1` scan
-  finished with at least one error finding; `2` usage/IO error.
-- Frontmatter parser (minimal YAML subset, stdlib only): flat `key: value`
-  scalars, quoted values, inline/block lists, block scalars, comments, and —
-  since W3.0 — **one level of nested mapping** under any `key:` (notably
-  `metadata:`). Entry keys may contain `/` (e.g. `opencode/autoinvoke`);
-  entry values support plain/quoted scalars, inline/block lists and block
-  scalars (`>-`/`|-`). Entry values stay plain strings (quoted values are
-  stripped; no type coercion); unknown `metadata:` subkeys are allowed and
-  produce no findings; top-level unknown keys stay FM007 (info). Nesting
-  deeper than one level under an entry is allowed but stored as a raw
-  string — reported as **FM008 (info, "nested metadata stored raw")** since
-  W3.1, never FM001; stray lines, duplicate keys and anything else
-  unrecognized still fail loudly as FM001.
-- Known frontmatter keys = the SKILL.md spec keys (`name`, `description`,
-  `when_to_use`, `allowed-tools`, `license`, `metadata`) plus the Claude
-  Code frontmatter extension keys（2026-11 实测于公开 skill 仓库）:
-  `effort`, `compatibility`, `context`, `argument-hint`, `user-invocable`,
-  `disable-model-invocation` (`CLAUDE_CODE_EXTENSION_KEYS` in
-  `src/skill_ci/rules.py`). Extension keys are accepted, not FM007; FM008
-  reports any depth-2+ mapping the parser keeps as a raw string.
-- Noise policy (configurable constants in `src/skill_ci/rules.py`, no
-  repo-specific names):
-  - **SEC002** — a credential-shaped string that is an obvious placeholder,
-    documentation example or test value (`your-*`, `example*`/`xxx`
-    substrings, `<...>` angle placeholders, `${...}` template references,
-    `test-*`, AWS docs sample key, ...) is downgraded from warning to info
-    (`SEC002_PLACEHOLDER_PREFIXES` / `SEC002_PLACEHOLDER_VALUES`);
-  - **FM004** — a name/directory mismatch under a scaffold-style directory
-    (`template(s)`, `example(s)`, `sample(s)`, `scaffold(s)`, `boilerplate`,
-    `_template(s)`) is downgraded from warning to info
-    (`FM004_TEMPLATE_DIR_MARKERS`).
-- Token estimates are script-weighted (ASCII 0.25 tokens/char — identical to
-  the old `len//4` for pure ASCII —, CJK ideographs/kana/Hangul/CJK
-  punctuation/fullwidth 1.0, other non-ASCII 0.5); see
-  `src/skill_ci/tokens.py` for the estimation formula and its documented
-  limits.
+Python 3.11 or newer.
 
-## skill-test
+## What `skill-lint` checks
 
-`skill-test` answers: *if skills were selected purely by their metadata
-(name + description + when_to_use), how reliably would the right skill fire
-for a prompt?* It uses a stdlib Okapi BM25 index (ASCII word tokens +
-CJK character bigrams) with a documented score threshold and a
-document-substring fallback. **No LLM, no agent runs, no network.**
+22 deterministic rules in six groups:
 
-### prompts.jsonl contract
+| Group | Rules | Catches |
+| --- | --- | --- |
+| Frontmatter | FM001–FM008 | missing/unclosed frontmatter, missing `name`/`description`, invalid `name`, name/directory mismatch, unknown keys, raw nested metadata |
+| Description quality | DQ001–DQ004 | too short, generic filler, missing “use when” guidance, description over 1024 chars |
+| Token budget | TK001–TK002 | body over ~5k tokens (warning), over ~15k (error) |
+| Duplicates / conflicts | DUP001–DUP003 | duplicate names, near-identical descriptions, overlapping trigger scope |
+| Security | SEC001–SEC003 | destructive shell commands, credential-shaped strings, download-and-execute patterns |
+| Structure | STRUCT001–STRUCT002 | no `SKILL.md`, unreadable file |
 
-One JSON object per line, exactly two keys:
+Every finding carries `rule_id`, `severity`, `file`, `line`, `message` and a
+fix hint. Markdown groups findings by rule; JSON keeps every instance.
+
+## `skill-lint` usage
+
+```sh
+bin/skill-lint <repo> [--format markdown|json] [--out FILE] [--all-instances]
+```
+
+- Default Markdown groups findings by rule and lists affected `file:line`s.
+- `--format json` emits instance-level data for CI/dashboards.
+- `--out FILE` writes the report to a file instead of stdout.
+- `--all-instances` expands the Markdown report to one row per finding.
+
+Example:
+
+```text
+# skill-lint report
+
+- Target: `examples/skills`
+- Skills scanned: 1
+- Findings: 0 error(s), 0 warning(s), 0 info
+- Exit code: 0
+
+## Skill inventory
+
+| skill | name | body tokens (est.) | description chars |
+| --- | --- | ---: | ---: |
+| `example-skill/SKILL.md` | example-skill | 20 | 115 |
+
+## Findings by rule
+
+No findings. All checks passed.
+```
+
+## `skill-test`: does the right skill trigger?
+
+```sh
+bin/skill-test <repo> --suite prompts.jsonl [--format markdown|json] [--out FILE] [--threshold 1.0]
+```
+
+`skill-test` indexes each skill's `name` + `description` + `when_to_use`, scores
+every prompt with a stdlib Okapi BM25 index (plus a substring fallback), and
+compares the top prediction with the expected skill. It reports:
+
+- trigger precision and recall;
+- TP / FP / FN / TN;
+- every false positive and false negative with the exact terms that produced
+  the score;
+- per-skill expected-vs-predicted hit counts;
+- the context cost of the trigger metadata.
+
+No LLM, no agent runs, no network.
+
+### `prompts.jsonl` format
+
+One JSON object per line:
 
 ```jsonl
 {"prompt": "convert this csv export into an excel workbook", "expected": "csv-to-excel"}
@@ -133,30 +134,55 @@ One JSON object per line, exactly two keys:
 {"prompt": "tell me a joke", "expected": "none"}
 ```
 
-- `prompt`: required, non-empty string.
-- `expected`: the skill `name` that SHOULD fire — or `null` / `"none"`
-  (case-insensitive) for prompts that must fire NO skill.
-- Unknown skill ids, malformed lines, or an empty suite are usage errors
-  (exit 2) with 1-based line numbers.
-- The contract is also documented in the `skill_ci.triggers` module
-  docstring.
+- `prompt` — non-empty string.
+- `expected` — the skill `name` that should fire, or `null` / `"none"` for
+  prompts where no skill should fire.
+- A malformed line, an unknown skill id, or an empty suite exits `2` with a
+  1-based line number.
 
-### Output
+Run the bundled example:
 
-- trigger precision / recall, TP/FP/FN/TN (multi-class convention: a
-  wrong-skill trigger counts as both FP and FN; an empty precision or
-  recall denominator is defined as 1.0),
-- FP list: prompt + wrongly fired skill + the exact terms that produced the
-  score (BM25 idf x tf contributions) — every FP/FN is traceable to the
-  words in the offending description,
-- FN list: prompt + missed skill + why (best score below threshold or zero
-  overlap),
-- per-skill expected-vs-predicted hit distribution,
-- token cost of each skill's trigger metadata (script-weighted) plus the
-  whole-suite context load.
+```sh
+bin/skill-test tests/fixtures/skilltest-repo --suite tests/fixtures/skilltest-suite/prompts.jsonl
+```
 
-Exit codes: `0` = suite ran (skill-test measures, it does not gate);
-`2` = usage/IO error.
+## GitHub Action
+
+Call the reusable workflow from your own repository:
+
+```yaml
+name: skill-ci
+
+on:
+  pull_request:
+
+jobs:
+  lint:
+    uses: zhengqiuyang/skill-ci/.github/workflows/skill-ci.yml@v0.1.0-alpha
+    with:
+      target: .
+```
+
+The workflow runs the blocking lint on Ubuntu and Windows with Python 3.12.
+`target` is the path to your skill repository. The repository's own workflow
+also runs a non-blocking smoke test over its intentionally malformed fixtures,
+so a red fixture job does not block a PR.
+
+## Scope and limits
+
+- **Static checks only.** It reads `SKILL.md` files as text; it does not
+  execute skill code or call a model.
+- **Token counts are estimates.** The estimator is script-weighted
+  (ASCII 0.25 tokens/char, CJK 1.0, other non-ASCII 0.5), not a tokenizer.
+- **`skill-test` models metadata-based triggering.** It uses BM25 over the
+  skill metadata, not the real harness's routing; it is a fast, repeatable
+  proxy for description quality.
+- **The YAML subset is deliberately small.** Common frontmatter is parsed;
+  unsupported constructs are reported loudly (`FM001`/`FM008`), never
+  silently guessed.
+
+These are deliberate trade-offs: deterministic output, no network, no code
+execution, and safe scanning of untrusted repositories.
 
 ## Development
 
@@ -166,19 +192,10 @@ python -m compileall src                              # must be clean
 ```
 
 Layout: `src/skill_ci/` (cli, pipeline, rules, frontmatter, tokens, bm25,
-triggers, render, test_cli), `tests/fixtures/` (synthetic skills incl. a
-Chinese `cjk-skill`, plus a 5-skill trigger-test repo with a 20-prompt
-labeled suite), `examples/skills/` (the blocking CI example).
+triggers, render, test_cli), `tests/fixtures/` (synthetic skills, including a
+CJK fixture and a 5-skill trigger-test repo with a 20-prompt suite),
+`examples/skills/` (the blocking CI example).
 
-## Discipline
+## License
 
-- No third-party runtime dependencies; stdlib only.
-- No network at runtime. Third-party repos are fetched only as
-  `codeload.github.com` snapshot tarballs into `.scratch/` (gitignored) and
-  treated as untrusted data: parsed as text, never executed, never
-  installed, no interpreter run from inside them.
-- Nothing is written to the C: drive; run tests with `TMP`/`TEMP` pointed
-  somewhere on `D:` if your shell maps `/tmp` to `C:`.
-
-See `src/skill_ci/rules.py` for the rule catalog and the README sections
-above for scope, limits and known caveats.
+MIT. See [LICENSE](LICENSE).

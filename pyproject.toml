@@ -5,14 +5,21 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "skill-ci"
 version = "0.1.0"
-description = "Static CI tooling for agent-skill repositories. Week 1: skill-lint, a dependency-free SKILL.md linter."
+description = "Static CI for agent skills: lint SKILL.md, test trigger selection, and gate PRs."
+readme = "README.md"
 requires-python = ">=3.11"
 dependencies = []
-keywords = ["skills", "lint", "ci", "skill-md"]
+keywords = ["skills", "lint", "ci", "skill-md", "claude", "agents"]
 license = { text = "MIT" }
+authors = [{ name = "skill-ci contributors" }]
+
+[project.urls]
+Homepage = "https://github.com/zhengqiuyang/skill-ci"
+Repository = "https://github.com/zhengqiuyang/skill-ci"
 
 [project.scripts]
 skill-lint = "skill_ci.cli:main"
+skill-test = "skill_ci.cli:test_main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

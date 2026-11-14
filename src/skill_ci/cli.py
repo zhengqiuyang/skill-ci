@@ -71,3 +71,8 @@ def main(argv: list[str] | None = None) -> int:
     else:
         sys.stdout.write(report)
     return exit_code
+
+
+def test_main() -> int:
+    """Console entry point for ``skill-test`` (prepends the ``test`` subcommand)."""
+    return main(["test", *sys.argv[1:]])
