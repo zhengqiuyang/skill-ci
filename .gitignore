@@ -1,0 +1,17 @@
+# python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# untrusted third-party checkouts: never committed, content treated as
+# untrusted data (parsed as text only, never executed, never installed)
+.scratch/
+
+# tooling
+.coverage
+.pytest_cache/
+.mypy_cache/

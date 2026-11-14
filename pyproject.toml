@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "skill-ci"
+version = "0.1.0"
+description = "Static CI tooling for agent-skill repositories. Week 1: skill-lint, a dependency-free SKILL.md linter."
+requires-python = ">=3.11"
+dependencies = []
+keywords = ["skills", "lint", "ci", "skill-md"]
+license = { text = "MIT" }
+
+[project.scripts]
+skill-lint = "skill_ci.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
