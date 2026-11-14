@@ -19,12 +19,15 @@ Supported constructs (anything else is reported as a parse note, never guessed):
           - alice
 
   Entry values reuse the scalar grammar and stay plain strings (no type
-  coercion); entry keys are never validated against a whitelist -- rules
-  decide whether subkeys matter. Nesting deeper than one level under an
-  entry is allowed but stored as a raw string (one stripped line per row),
-  parsed no further -- never a crash; each such raw-captured entry is
-  recorded on the doc (``SkillDoc.raw_nested``) and reported as FM008
-  (info) by the rules layer.
+  coercion); entry values also support block lists and block scalars
+  (``key: >-`` / ``key: |-``), and entry keys may contain ``/`` (observed
+  in real host-specific metadata such as ``opencode/autoinvoke``). Entry
+  keys are never validated against a whitelist -- rules decide whether
+  subkeys matter. Nesting deeper than one level under an entry is allowed
+  but stored as a raw string (one stripped line per row), parsed no
+  further -- never a crash; each such raw-captured entry is recorded on the
+  doc (``SkillDoc.raw_nested``) and reported as FM008 (info) by the rules
+  layer.
 - folded/literal block scalars (``key: >`` / ``>-`` / ``|`` / ``|-`` / ``>+`` / ``|+``)
 - indented plain continuation lines under ``key:`` (folded with spaces)
 - full-line ``#`` comments and blank lines
@@ -41,7 +44,7 @@ import re
 
 from .model import SkillDoc
 
-_KEY_RE = re.compile(r"^([A-Za-z][A-Za-z0-9_-]*)\s*:(.*)$")
+_KEY_RE = re.compile(r"^([A-Za-z][A-Za-z0-9_./-]*)\s*:(.*)$")
 _BLOCK_SCALAR_INDICATORS = (">", ">-", ">+", "|", "|-", "|+")
 
 
@@ -96,6 +99,49 @@ def _peek_shape(block: list[str], index: int) -> str:
             return "map"
         return "other"
     return "none"
+
+
+def _consume_nested_block_scalar(
+    block: list[str],
+    index: int,
+    target: dict,
+    subkey: str,
+    entry_indent: int,
+    indicator: str,
+) -> int:
+    """Consume a block scalar used as a nested-map entry value.
+
+    ``index`` points at the ``subkey: >-`` line. Content lines are those
+    indented deeper than ``entry_indent``; blank lines belong to the scalar
+    until a dedented non-blank line ends it. ``>`` folds to spaces, ``|``
+    preserves newlines. Chomping is approximated (``-`` strips, ``+`` keeps
+    one trailing newline); the goal is to parse the construct, not to be a
+    full YAML implementation.
+    """
+    j = index + 1
+    lines: list[str] = []
+    while j < len(block):
+        raw = block[j]
+        stripped = raw.strip()
+        if stripped == "":
+            lines.append("")
+            j += 1
+            continue
+        if _indent_width(raw) <= entry_indent:
+            break
+        lines.append(stripped)
+        j += 1
+
+    if indicator.startswith("|"):
+        text = "\n".join(lines)
+    else:
+        text = " ".join(line for line in lines if line)
+    if indicator.endswith("+"):
+        text = text + ("\n" if text else "")
+    else:
+        text = text.rstrip()
+    target[subkey] = text
+    return j
 
 
 def _consume_map_entry(block: list[str], index: int, doc: SkillDoc, owner_key: str) -> int:
@@ -174,6 +220,11 @@ def _consume_map_entry(block: list[str], index: int, doc: SkillDoc, owner_key: s
             return j
         target[subkey] = ""
         return j
+
+    if value_part in _BLOCK_SCALAR_INDICATORS:
+        return _consume_nested_block_scalar(
+            block, index, target, subkey, entry_indent, value_part
+        )
 
     if value_part.startswith("[") and value_part.endswith("]"):
         target[subkey] = _split_inline_list(value_part)

@@ -10,6 +10,7 @@ SRC = Path(__file__).resolve().parents[1] / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+from skill_ci.frontmatter import parse_skill_text  # noqa: E402
 from skill_ci.model import SEVERITIES  # noqa: E402
 from skill_ci.pipeline import lint_path  # noqa: E402
 
@@ -231,6 +232,46 @@ class NestedMetadataRuleTests(RuleTestBase):
         self.assertEqual(self.rules_for(findings, "unknown-nested"), {"FM007"})
         self.assertEqual([f.severity for f in findings], ["info"])
         self.assertEqual([f.line for f in findings], [4])
+
+    def test_slash_in_nested_key_lints_clean(self):
+        _, findings = self.lint_selection("nested-slash-key")
+        self.assertEqual(findings, [])
+
+    def test_nested_block_scalar_lints_clean(self):
+        _, findings = self.lint_selection("nested-block-scalar")
+        self.assertEqual(findings, [])
+
+    def test_slash_in_nested_key_value(self):
+        doc = parse_skill_text(
+            "---\n"
+            "name: nested-slash-key\n"
+            "description: Use when testing a namespaced metadata key.\n"
+            "metadata:\n"
+            "  opencode/autoinvoke: false\n"
+            "---\n"
+        )
+        self.assertEqual(
+            doc.frontmatter["metadata"]["opencode/autoinvoke"], "false"
+        )
+        self.assertEqual(doc.raw_nested, [])
+
+    def test_nested_block_scalar_values(self):
+        doc = parse_skill_text(
+            "---\n"
+            "name: nested-block-scalar\n"
+            "description: Use when testing nested block scalar values.\n"
+            "metadata:\n"
+            "  folded: >-\n"
+            "    a\n"
+            "    b\n"
+            "  literal: |-\n"
+            "    c\n"
+            "    d\n"
+            "---\n"
+        )
+        self.assertEqual(doc.frontmatter["metadata"]["folded"], "a b")
+        self.assertEqual(doc.frontmatter["metadata"]["literal"], "c\nd")
+        self.assertEqual(doc.raw_nested, [])
 
 
 class W3NoiseReductionTests(RuleTestBase):
