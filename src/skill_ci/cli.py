@@ -28,6 +28,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--out", metavar="FILE", default=None, help="write the report to FILE instead of stdout"
     )
+    parser.add_argument(
+        "--all-instances",
+        action="store_true",
+        help="markdown output: list every finding instance flat (W1 table shape); "
+        "default groups findings by rule_id. JSON output is always instance-level.",
+    )
     args = parser.parse_args(argv)
 
     root = Path(args.target)
@@ -47,7 +53,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.format == "json":
         report = render_json(str(root), docs, findings, exit_code)
     else:
-        report = render_markdown(str(root), docs, findings, exit_code)
+        report = render_markdown(str(root), docs, findings, exit_code, all_instances=args.all_instances)
 
     if args.out:
         try:

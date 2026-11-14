@@ -1,4 +1,13 @@
-"""JSON and Markdown rendering. Both render from the same findings list."""
+"""JSON and Markdown rendering. Both render from the same findings list.
+
+Markdown has two shapes (W2):
+
+- default: findings grouped by rule_id, one section per rule (severity,
+  meaning, fix hint, affected locations) - readability first;
+- ``--all-instances``: the W1 flat per-instance table (machine-skimmable).
+
+JSON keeps the W1 instance-level contract unchanged.
+"""
 
 from __future__ import annotations
 
@@ -41,8 +50,69 @@ def _md_cell(text: str) -> str:
     return text.replace("|", "\\|").replace("\n", " ")
 
 
+def _location(f: Finding) -> str:
+    return f"`{_md_cell(f.file)}`" if f.line == 0 else f"`{_md_cell(f.file)}:{f.line}`"
+
+
+def _grouped_findings_lines(findings: list[Finding]) -> list[str]:
+    """Findings grouped by rule: one section per rule_id, sorted."""
+    lines: list[str] = []
+    lines.append("## Findings by rule")
+    lines.append("")
+    if not findings:
+        lines.append("No findings. All checks passed.")
+        lines.append("")
+        return lines
+    by_rule: dict[str, list[Finding]] = {}
+    for f in findings:
+        by_rule.setdefault(f.rule_id, []).append(f)
+    for rule_id in sorted(by_rule):
+        group = by_rule[rule_id]
+        severity = group[0].severity
+        meaning = RULE_CATALOG.get(rule_id, "(undocumented rule)")
+        n = len(group)
+        lines.append(f"### {rule_id} — {severity}, {n} instance{'s' if n != 1 else ''}")
+        lines.append("")
+        lines.append(_md_cell(meaning))
+        lines.append("")
+        fix_hints = {f.fix_hint for f in group if f.fix_hint}
+        if fix_hints:
+            for hint in sorted(fix_hints):
+                lines.append(f"*Fix hint*: {_md_cell(hint)}")
+            lines.append("")
+        lines.append("Affected locations:")
+        lines.append("")
+        for f in group:
+            lines.append(f"- {_location(f)} — {_md_cell(f.message)}")
+        lines.append("")
+    return lines
+
+
+def _flat_findings_lines(findings: list[Finding]) -> list[str]:
+    """W1 shape: one table row per finding instance."""
+    lines: list[str] = []
+    lines.append("## Findings")
+    lines.append("")
+    if findings:
+        lines.append("| rule_id | severity | location | message | fix hint |")
+        lines.append("| --- | --- | --- | --- | --- |")
+        for f in findings:
+            lines.append(
+                f"| {f.rule_id} | {f.severity} | {_location(f)} | {_md_cell(f.message)} "
+                f"| {_md_cell(f.fix_hint or '-')} |"
+            )
+    else:
+        lines.append("No findings. All checks passed.")
+    lines.append("")
+    return lines
+
+
 def render_markdown(
-    target: str, docs: list[SkillDoc], findings: list[Finding], exit_code: int
+    target: str,
+    docs: list[SkillDoc],
+    findings: list[Finding],
+    exit_code: int,
+    all_instances: bool = False,
 ) -> str:
     counts = summarize(findings)
     lines: list[str] = []
@@ -72,20 +142,10 @@ def render_markdown(
                 f"| {doc.body_tokens} | {desc_chars} |"
             )
         lines.append("")
-    lines.append("## Findings")
-    lines.append("")
-    if findings:
-        lines.append("| rule_id | severity | location | message | fix hint |")
-        lines.append("| --- | --- | --- | --- | --- |")
-        for f in findings:
-            location = f"`{_md_cell(f.file)}`" if f.line == 0 else f"`{_md_cell(f.file)}:{f.line}`"
-            lines.append(
-                f"| {f.rule_id} | {f.severity} | {location} | {_md_cell(f.message)} "
-                f"| {_md_cell(f.fix_hint or '-')} |"
-            )
+    if all_instances:
+        lines.extend(_flat_findings_lines(findings))
     else:
-        lines.append("No findings. All checks passed.")
-    lines.append("")
+        lines.extend(_grouped_findings_lines(findings))
     lines.append("## Rule catalog")
     lines.append("")
     lines.append("| rule_id | meaning |")
