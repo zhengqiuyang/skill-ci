@@ -196,6 +196,43 @@ class W3RegressionNetTests(RuleTestBase):
         self.assertEqual([f.severity for f in sec002], ["warning"])
 
 
+class NestedMetadataRuleTests(RuleTestBase):
+    """W3.0: unknown keys under ``metadata:`` are allowed (no FM001/FM007);
+    top-level unknown keys stay FM007 even with a nested-map value."""
+
+    def test_nested_metadata_subkeys_are_allowed(self):
+        _, findings = self.lint_selection("nested-metadata")
+        self.assertEqual(findings, [])
+
+    def test_stray_line_inside_nested_map_is_fm001(self):
+        _, findings = self.lint_selection("nested-metadata-bad")
+        self.assertEqual(self.rules_for(findings, "nested-metadata-bad"), {"FM001"})
+        self.assertEqual([f.line for f in findings], [6])
+
+    def test_quoted_metadata_lints_clean(self):
+        _, findings = self.lint_selection("quoted-metadata")
+        self.assertEqual(findings, [])
+
+    def test_nested_list_values_lint_clean(self):
+        _, findings = self.lint_selection("list-metadata")
+        self.assertEqual(findings, [])
+
+    def test_stray_line_inside_nested_list_is_fm001(self):
+        _, findings = self.lint_selection("list-metadata-bad")
+        self.assertEqual(self.rules_for(findings, "list-metadata-bad"), {"FM001"})
+        self.assertEqual([f.line for f in findings], [7])
+
+    def test_empty_metadata_lints_clean(self):
+        _, findings = self.lint_selection("empty-metadata")
+        self.assertEqual(findings, [])
+
+    def test_nested_map_under_unknown_top_level_key_is_fm007_only(self):
+        _, findings = self.lint_selection("unknown-nested")
+        self.assertEqual(self.rules_for(findings, "unknown-nested"), {"FM007"})
+        self.assertEqual([f.severity for f in findings], ["info"])
+        self.assertEqual([f.line for f in findings], [4])
+
+
 class StructureTests(RuleTestBase):
     def test_empty_target_reports_struct001(self):
         tmp = tempfile.mkdtemp(prefix="skillci-empty-")

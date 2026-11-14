@@ -171,7 +171,9 @@ def check_frontmatter(doc: SkillDoc, findings: list[Finding]) -> None:
                 doc.rel_path,
                 line_no,
                 f"frontmatter line {line_no}: {note}",
-                "Rewrite the line as 'key: value'; nested mappings and anchors are unsupported.",
+                "Rewrite the line as 'key: value'; one level of nested mapping is "
+                "supported (e.g. under 'metadata:'), deeper nesting is kept as a raw "
+                "string; anchors and flow mappings are unsupported.",
             )
         )
 

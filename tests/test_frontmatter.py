@@ -140,5 +140,174 @@ class W3RegressionParserTest(unittest.TestCase):
         self.assertEqual(doc.parse_notes[0][0], 4)  # file line of the stray text
 
 
+class NestedMetadataParserTest(unittest.TestCase):
+    """W3.0: one-level nested mappings (notably under ``metadata:``)."""
+
+    def test_nested_metadata_map_parses_to_dict(self):
+        text = (
+            "---\n"
+            "name: nested-meta\n"
+            "description: Nested metadata with scalar values. Use when nesting is parsed.\n"
+            "metadata:\n"
+            "  author: Example Author\n"
+            '  version: "1.2.0"\n'
+            "  stars: 42\n"
+            "  related-skills: pdf-tools, csv-tools\n"
+            "---\n"
+            "body\n"
+        )
+        doc = parse_skill_text(text)
+        self.assertEqual(doc.parse_notes, [])
+        self.assertEqual(
+            doc.frontmatter["metadata"],
+            {
+                "author": "Example Author",
+                "version": "1.2.0",
+                "stars": "42",  # scalar subset: no type coercion, values stay strings
+                "related-skills": "pdf-tools, csv-tools",
+            },
+        )
+        self.assertEqual(doc.key_lines["metadata"], 4)
+        self.assertEqual(doc.body_start_line, 10)
+
+    def test_nested_metadata_quotes_are_stripped(self):
+        text = (
+            "---\n"
+            "name: quoted-meta\n"
+            "metadata:\n"
+            "  author: 'Single Quoted'\n"
+            '  version: "1.0.0"\n'
+            "---\n"
+            "body\n"
+        )
+        doc = parse_skill_text(text)
+        self.assertEqual(doc.parse_notes, [])
+        self.assertEqual(
+            doc.frontmatter["metadata"],
+            {"author": "Single Quoted", "version": "1.0.0"},
+        )
+
+    def test_nested_metadata_block_and_inline_lists(self):
+        text = (
+            "---\n"
+            "name: list-meta\n"
+            "metadata:\n"
+            "  reviewers:\n"
+            "    - alice\n"
+            "    - bob\n"
+            "  tags: [docs, lint]\n"
+            "  requires: []\n"
+            "---\n"
+            "body\n"
+        )
+        doc = parse_skill_text(text)
+        self.assertEqual(doc.parse_notes, [])
+        self.assertEqual(
+            doc.frontmatter["metadata"],
+            {"reviewers": ["alice", "bob"], "tags": ["docs", "lint"], "requires": []},
+        )
+
+    def test_empty_metadata_stays_empty_list(self):
+        text = "---\nname: empty-meta\nmetadata:\n---\nbody\n"
+        doc = parse_skill_text(text)
+        self.assertEqual(doc.parse_notes, [])
+        self.assertEqual(doc.frontmatter["metadata"], [])
+
+    def test_two_level_nesting_is_allowed_but_raw_string(self):
+        text = (
+            "---\n"
+            "name: deep-meta\n"
+            "metadata:\n"
+            "  author:\n"
+            "    name: Jeff\n"
+            "    url: https://example.com/jeff\n"
+            "  version: \"1.0\"\n"
+            "---\n"
+            "body\n"
+        )
+        doc = parse_skill_text(text)
+        self.assertEqual(doc.parse_notes, [])
+        self.assertEqual(
+            doc.frontmatter["metadata"]["author"],
+            "name: Jeff\nurl: https://example.com/jeff",
+        )
+        self.assertEqual(doc.frontmatter["metadata"]["version"], "1.0")
+
+    def test_duplicate_nested_subkey_is_note_and_last_wins(self):
+        text = (
+            "---\n"
+            "name: dup-meta\n"
+            "metadata:\n"
+            "  author: first\n"
+            "  author: second\n"
+            "---\n"
+            "body\n"
+        )
+        doc = parse_skill_text(text)
+        self.assertEqual(len(doc.parse_notes), 1)
+        line, note = doc.parse_notes[0]
+        self.assertEqual(line, 5)
+        self.assertIn("duplicate key 'author' under 'metadata'", note)
+        self.assertEqual(doc.frontmatter["metadata"]["author"], "second")
+
+    def test_unknown_metadata_subkeys_are_allowed(self):
+        text = (
+            "---\n"
+            "name: flavor-meta\n"
+            "metadata:\n"
+            "  flavor: banana\n"
+            "  custom-field: whatever\n"
+            "---\n"
+            "body\n"
+        )
+        doc = parse_skill_text(text)
+        self.assertEqual(doc.parse_notes, [])
+        self.assertEqual(doc.frontmatter["metadata"]["flavor"], "banana")
+
+    def test_unrecognized_line_inside_nested_map_is_note(self):
+        text = (
+            "---\n"
+            "name: bad-meta\n"
+            "metadata:\n"
+            "  author: Example\n"
+            "  this sentence has no colon at all\n"
+            "---\n"
+            "body\n"
+        )
+        doc = parse_skill_text(text)
+        self.assertEqual(len(doc.parse_notes), 1)
+        self.assertEqual(doc.parse_notes[0][0], 5)
+        self.assertIn("unrecognized frontmatter line", doc.parse_notes[0][1])
+
+    def test_stray_line_inside_nested_list_value_is_note(self):
+        text = (
+            "---\n"
+            "name: bad-meta-list\n"
+            "metadata:\n"
+            "  reviewers:\n"
+            "    - alice\n"
+            "    stray line with no dash\n"
+            "---\n"
+            "body\n"
+        )
+        doc = parse_skill_text(text)
+        self.assertEqual(len(doc.parse_notes), 1)
+        self.assertEqual(doc.parse_notes[0][0], 6)
+        self.assertIn("inside list value of 'reviewers' under 'metadata'", doc.parse_notes[0][1])
+
+    def test_nested_map_under_unknown_top_level_key_parses(self):
+        text = (
+            "---\n"
+            "name: unknown-nested\n"
+            "context:\n"
+            "  scope: repo\n"
+            "---\n"
+            "body\n"
+        )
+        doc = parse_skill_text(text)
+        self.assertEqual(doc.parse_notes, [])
+        self.assertEqual(doc.frontmatter["context"], {"scope": "repo"})
+
+
 if __name__ == "__main__":
     unittest.main()
