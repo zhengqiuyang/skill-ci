@@ -6,9 +6,9 @@ install required to run, no network at runtime, no LLM calls.
 
 > **Status: experimental alpha.** Static text checks only — this is not a
 > runtime test of a skill. The repository is a work artifact, not a
-> maintained product: no outreach, no support commitment. The 10-repo scan
-> in `docs/w3-report.md` is a convenience sample, not a prevalence study;
-> read its "honest positioning" and known-limitations sections first.
+> maintained product: no outreach, no support commitment. Development
+> reports are intentionally not published; the README and the rule catalog
+> are the public scope.
 
 ## What's inside
 
@@ -112,8 +112,8 @@ bin/skill-lint ./some-skill-repo --all-instances   # flat per-instance table (W1
 - Token estimates are script-weighted (ASCII 0.25 tokens/char — identical to
   the old `len//4` for pure ASCII —, CJK ideographs/kana/Hangul/CJK
   punctuation/fullwidth 1.0, other non-ASCII 0.5); see
-  `src/skill_ci/tokens.py` and `docs/w2-report.md` for the calibration
-  status and its honest limits.
+  `src/skill_ci/tokens.py` for the estimation formula and its documented
+  limits.
 
 ## skill-test
 
@@ -161,14 +161,14 @@ Exit codes: `0` = suite ran (skill-test measures, it does not gate);
 ## Development
 
 ```sh
-PYTHONPATH=src python -m unittest discover -s tests   # 136 tests (W3.1)
+PYTHONPATH=src python -m unittest discover -s tests   # 140 tests
 python -m compileall src                              # must be clean
 ```
 
 Layout: `src/skill_ci/` (cli, pipeline, rules, frontmatter, tokens, bm25,
 triggers, render, test_cli), `tests/fixtures/` (synthetic skills incl. a
 Chinese `cjk-skill`, plus a 5-skill trigger-test repo with a 20-prompt
-labeled suite), `docs/` (weekly reports).
+labeled suite), `examples/skills/` (the blocking CI example).
 
 ## Discipline
 
@@ -180,5 +180,5 @@ labeled suite), `docs/` (weekly reports).
 - Nothing is written to the C: drive; run tests with `TMP`/`TEMP` pointed
   somewhere on `D:` if your shell maps `/tmp` to `C:`.
 
-See `docs/w1-report.md` and `docs/w2-report.md` for scope, rule catalog,
-calibration notes and known issues.
+See `src/skill_ci/rules.py` for the rule catalog and the README sections
+above for scope, limits and known caveats.
