@@ -1,0 +1,50 @@
+#!/bin/sh
+# skill-lint launcher (POSIX sh / Git Bash).
+#
+# Locates the skill-ci repository root relative to this script, puts
+# <root>/src on PYTHONPATH and runs the linter. Works from any working
+# directory, handles paths containing spaces, installs nothing, writes
+# nothing outside the target/report the user asks for.
+#
+# Usage: bin/skill-lint <target> [options...]
+#   Same arguments as `python -m skill_ci` (see --help).
+
+set -eu
+
+# Derive the repo root from this script's own location (two levels up:
+# <root>/bin/skill-lint -> <root>). Resolves symlinks via cd/pwd -P and
+# survives spaces because every expansion is quoted.
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+repo_root=$(dirname -- "$script_dir")
+
+if [ ! -d "$repo_root/src/skill_ci" ]; then
+    printf 'skill-lint: cannot locate skill_ci sources under %s/src\n' "$repo_root" >&2
+    exit 2
+fi
+
+if ! command -v python >/dev/null 2>&1; then
+    printf 'skill-lint: python not found on PATH\n' >&2
+    exit 2
+fi
+
+# PYTHONPATH is ';'-separated for native Windows Python (Git Bash / MSYS),
+# ':' elsewhere. On MSYS the src directory is handed over in Windows form
+# (cygpath -m -> "D:/..."), because a ';'-joined value is interpreted as an
+# already-Windows path list by the MSYS runtime and a POSIX root would be
+# mis-converted (observed: "/d/x" -> "D:\d\x").
+case "$(uname -s)" in
+    MINGW* | MSYS* | CYGWIN*)
+        if command -v cygpath >/dev/null 2>&1; then
+            src_dir=$(cygpath -m "$repo_root/src")
+        else
+            src_dir="$repo_root/src"
+        fi
+        PYTHONPATH="$src_dir${PYTHONPATH:+;$PYTHONPATH}"
+        ;;
+    *)
+        PYTHONPATH="$repo_root/src${PYTHONPATH:+:$PYTHONPATH}"
+        ;;
+esac
+export PYTHONPATH
+
+exec python -m skill_ci "$@"

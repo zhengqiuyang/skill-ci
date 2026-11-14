@@ -1,0 +1,5 @@
+# Launcher scripts must keep their native line endings: sh dies on CRLF.
+bin/skill-lint text eol=lf
+bin/skill-test text eol=lf
+bin/*.cmd text eol=crlf
+*.sh text eol=lf
