@@ -341,5 +341,76 @@ class StructureTests(RuleTestBase):
         self.assertTrue({f.rule_id for f in findings} <= set(RULE_CATALOG))
 
 
+class FrontmatterWhitelistTests(RuleTestBase):
+    """W3.1: Claude Code frontmatter extension keys（2026-11 实测于公开 skill
+    仓库）are accepted -- no FM007 for any of them."""
+
+    EXT_FIXTURES = (
+        "ext-effort",
+        "ext-compatibility",
+        "ext-context",
+        "ext-argument-hint",
+        "ext-user-invocable",
+        "ext-disable-model-invocation",
+    )
+
+    def test_extension_keys_lint_clean(self):
+        for name in self.EXT_FIXTURES:
+            with self.subTest(fixture=name):
+                _, findings = self.lint_selection(name)
+                self.assertEqual(findings, [])
+
+    def test_whitelist_contains_extension_keys(self):
+        from skill_ci import rules
+
+        for key in (
+            "effort",
+            "compatibility",
+            "context",
+            "argument-hint",
+            "user-invocable",
+            "disable-model-invocation",
+        ):
+            self.assertIn(key, rules.KNOWN_FRONTMATTER_KEYS)
+            self.assertIn(key, rules.CLAUDE_CODE_EXTENSION_KEYS)
+
+    def test_truly_unknown_key_still_fm007(self):
+        _, findings = self.lint_selection("unknown-keys")
+        self.assertEqual(self.rules_for(findings, "unknown-keys"), {"FM007"})
+
+
+class NestedMetadataDeepTests(RuleTestBase):
+    """W3.1: depth-2+ nested mappings under ``metadata:`` must not be FM001;
+    the capability limit is reported as FM008 (info) instead."""
+
+    def test_two_level_nesting_is_fm008_not_fm001(self):
+        _, findings = self.lint_selection("nested-metadata-deep")
+        self.assertEqual(self.rules_for(findings, "nested-metadata-deep"), {"FM008"})
+        self.assertTrue(all(f.severity == "info" for f in findings))
+        self.assertEqual([f.line for f in findings], [5])
+        self.assertIn("raw string", findings[0].message)
+
+    def test_two_level_nesting_bad_sibling_line_stays_fm001(self):
+        _, findings = self.lint_selection("nested-metadata-deep-bad")
+        self.assertEqual(
+            self.rules_for(findings, "nested-metadata-deep-bad"), {"FM001", "FM008"}
+        )
+        fm001 = [f for f in findings if f.rule_id == "FM001"]
+        self.assertEqual([f.severity for f in fm001], ["error"])
+        self.assertEqual([f.line for f in fm001], [7])
+
+    def test_fm008_has_catalog_entry(self):
+        from skill_ci.rules import RULE_CATALOG
+
+        self.assertIn("FM008", RULE_CATALOG)
+        self.assertIn("raw", RULE_CATALOG["FM008"])
+
+    def test_fm008_never_gates_exit_code(self):
+        # info findings alone must keep the CLI exit code at 0
+        _, findings = self.lint_selection("nested-metadata-deep")
+        self.assertTrue(findings)
+        self.assertFalse(any(f.severity == "error" for f in findings))
+
+
 if __name__ == "__main__":
     unittest.main()

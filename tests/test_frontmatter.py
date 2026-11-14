@@ -296,17 +296,70 @@ class NestedMetadataParserTest(unittest.TestCase):
         self.assertIn("inside list value of 'reviewers' under 'metadata'", doc.parse_notes[0][1])
 
     def test_nested_map_under_unknown_top_level_key_parses(self):
+        # `context` joined the known-keys whitelist in W3.1, so a still-unknown
+        # custom key stands in for "unknown top-level key with a nested map".
         text = (
             "---\n"
             "name: unknown-nested\n"
-            "context:\n"
-            "  scope: repo\n"
+            "x-custom-scope:\n"
+            "  depth: repo\n"
             "---\n"
             "body\n"
         )
         doc = parse_skill_text(text)
         self.assertEqual(doc.parse_notes, [])
-        self.assertEqual(doc.frontmatter["context"], {"scope": "repo"})
+        self.assertEqual(doc.frontmatter["x-custom-scope"], {"depth": "repo"})
+
+
+class RawNestedParserTest(unittest.TestCase):
+    """W3.1: depth-2+ mappings under a nested entry are raw-captured and
+    recorded on the doc (rules turn that into FM008, info -- never FM001)."""
+
+    def test_raw_capture_is_recorded_on_doc(self):
+        text = (
+            "---\n"
+            "name: deep-meta\n"
+            "metadata:\n"
+            "  author:\n"
+            "    name: Jeff\n"
+            "    url: https://example.com/jeff\n"
+            "---\n"
+            "body\n"
+        )
+        doc = parse_skill_text(text)
+        self.assertEqual(doc.parse_notes, [])
+        self.assertEqual(doc.raw_nested, [(4, "metadata.author")])
+
+    def test_depth1_entries_are_not_raw_captured(self):
+        text = (
+            "---\n"
+            "name: shallow-meta\n"
+            "metadata:\n"
+            "  author: Jeff\n"
+            "---\n"
+            "body\n"
+        )
+        doc = parse_skill_text(text)
+        self.assertEqual(doc.parse_notes, [])
+        self.assertEqual(doc.raw_nested, [])
+
+    def test_raw_capture_does_not_swallow_sibling_lines(self):
+        text = (
+            "---\n"
+            "name: deep-bad\n"
+            "metadata:\n"
+            "  author:\n"
+            "    name: Jeff\n"
+            "  this line has no colon\n"
+            "---\n"
+            "body\n"
+        )
+        doc = parse_skill_text(text)
+        # the raw capture stops at the dedent; the stray sibling line is
+        # still a loud note (FM001 via rules)
+        self.assertEqual(len(doc.parse_notes), 1)
+        self.assertEqual(doc.parse_notes[0][0], 6)
+        self.assertEqual(doc.raw_nested, [(4, "metadata.author")])
 
 
 if __name__ == "__main__":
