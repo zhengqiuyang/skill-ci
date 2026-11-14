@@ -1,34 +1,37 @@
-# skill-ci: lint every SKILL.md inside this repository with skill-lint.
+# skill-ci: lint every SKILL.md in this repository.
 #
-# Why continue-on-error (non-blocking by design):
-# The in-repo SKILL.md files are the linter's own test fixtures
-# (tests/fixtures/**) and several of them intentionally contain malformed
-# skills (no-frontmatter, missing-keys, nested-metadata-bad, long-desc, ...)
-# so the scan is *expected* to exit 1 with error findings. Gating PRs on
-# that would fail every push for content that exists precisely to exercise
-# the rules. The run stays visible in the Actions tab; a future W4 gate
-# should lint only real skills, not the fixture tree.
+# Two jobs:
+# - example-gate: BLOCKING. Lints examples/skills, a small valid skill set.
+#   This is the "CI can actually gate" demonstration; a real error fails the
+#   job.
+# - fixture-smoke: NON-BLOCKING. Lints the repo's own tests/fixtures tree,
+#   which intentionally contains malformed skills; it is a smoke test, not a
+#   gate. Gating on it would fail every push for content that exists to
+#   exercise the rules.
 #
-# No pip install: skill-lint is stdlib-only and runs straight from the
-# checkout via `PYTHONPATH=src python -m skill_ci`.
+# Reusable: `workflow_call` accepts a `target` input, so another repository
+# can call this workflow and lint its own skills with a blocking gate.
 #
-# Local validation note: this file was self-checked locally with a
-# hand-rolled structural YAML-subset checker only (no PyYAML on the author
-# machine; see .scratch/w3-tools/check_workflow.py in the dev sandbox).
-# 完整验证在首次 push 后进行 — full schema/action validation happens on the
-# first push, when GitHub parses the workflow for real.
-
+# Local validation note: the YAML was self-checked with a hand-rolled
+# structural subset checker only (no PyYAML on the author machine). Full
+# schema/action validation happens on the first push, when GitHub parses it.
 name: skill-ci
 
 on:
   push:
   pull_request:
+  workflow_call:
+    inputs:
+      target:
+        description: Path to lint
+        required: false
+        type: string
+        default: examples/skills
 
 jobs:
-  skill-lint:
-    name: skill-lint (${{ matrix.os }})
+  example-gate:
+    name: example gate (${{ matrix.os }})
     strategy:
-      # one OS failing must not cancel the other leg
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
@@ -42,9 +45,30 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: skill-lint over in-repo SKILL.md (tests/fixtures tree)
-        # non-blocking: fixtures intentionally trigger error findings (see
-        # header comment); the step is still reported for humans to read
+      - name: skill-lint (blocking)
+        shell: bash
+        env:
+          PYTHONPATH: src
+        run: python -m skill_ci "${{ inputs.target || 'examples/skills' }}" --format markdown
+
+  fixture-smoke:
+    if: ${{ github.event_name != 'workflow_call' }}
+    name: fixture smoke (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: skill-lint fixtures (non-blocking, expected errors)
         continue-on-error: true
         shell: bash
         env:

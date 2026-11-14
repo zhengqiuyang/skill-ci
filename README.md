@@ -40,6 +40,25 @@ After a normal `pip install .` the console scripts `skill-lint` /
 `skill-test` are also available — but the repo is usable without any
 installation.
 
+## GitHub Action
+
+`.github/workflows/skill-ci.yml` has three entry points:
+
+- **`example-gate` (blocking)** — lints `examples/skills`; a real error
+  fails the job. This is the gate to copy into your own repository.
+- **`fixture-smoke` (non-blocking)** — lints the repo's own
+  `tests/fixtures` tree, which intentionally contains malformed skills.
+- **`workflow_call`** — reusable with a `target` input:
+
+```yaml
+- uses: <owner>/skill-ci/.github/workflows/skill-ci.yml@main
+  with:
+    target: .
+```
+
+Local validation is structural only; full schema/action validation
+happens when GitHub first parses the workflow.
+
 ## skill-lint
 
 ```sh
@@ -57,13 +76,15 @@ bin/skill-lint ./some-skill-repo --all-instances   # flat per-instance table (W1
 - Frontmatter parser (minimal YAML subset, stdlib only): flat `key: value`
   scalars, quoted values, inline/block lists, block scalars, comments, and —
   since W3.0 — **one level of nested mapping** under any `key:` (notably
-  `metadata:`). Entry values stay plain strings (quoted values are stripped;
-  no type coercion); unknown `metadata:` subkeys are allowed and produce no
-  findings; top-level unknown keys stay FM007 (info). Nesting deeper than one
-  level under an entry is allowed but stored as a raw string — reported as
-  **FM008 (info, "nested metadata stored raw")** since W3.1, never FM001;
-  stray lines, duplicate keys and anything else unrecognized still fail
-  loudly as FM001.
+  `metadata:`). Entry keys may contain `/` (e.g. `opencode/autoinvoke`);
+  entry values support plain/quoted scalars, inline/block lists and block
+  scalars (`>-`/`|-`). Entry values stay plain strings (quoted values are
+  stripped; no type coercion); unknown `metadata:` subkeys are allowed and
+  produce no findings; top-level unknown keys stay FM007 (info). Nesting
+  deeper than one level under an entry is allowed but stored as a raw
+  string — reported as **FM008 (info, "nested metadata stored raw")** since
+  W3.1, never FM001; stray lines, duplicate keys and anything else
+  unrecognized still fail loudly as FM001.
 - Known frontmatter keys = the SKILL.md spec keys (`name`, `description`,
   `when_to_use`, `allowed-tools`, `license`, `metadata`) plus the Claude
   Code frontmatter extension keys（2026-11 实测于公开 skill 仓库）:

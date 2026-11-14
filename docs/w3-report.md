@@ -6,6 +6,10 @@ W3.1 commits `04dc7c5` (feat parser), `43e99af` (test parser), `86e8950`
 unittest discover -s tests`), `python -m compileall src` clean. Scan date:
 2026-11-14. Nothing was pushed and no issue/PR was filed.
 
+> **W3.2 follow-up (2026-11-14):** the blocking `example-gate` and the two
+> parser fixes named as W4 candidates in §6 are implemented; see
+> `docs/w3.2-report.md`. The W3.1 measurements below are unchanged.
+
 ## 1. What changed in W3.1
 
 ### 1.1 Frontmatter whitelist extension (FM007)
@@ -215,11 +219,11 @@ internally consistent in ways a flat-name linter cannot model
 
 ## 6. Known limitations (this week)
 
-- The YAML subset still rejects two valid-YAML constructs found in the
-  wild: `/` inside nested-map keys (product-audit) and block scalars
-  under nested-map entries (ai-first-process-redesign). Both are
-  documented subset limits, reported loudly (FM001 with the exact line),
-  never guessed at. W4 candidates.
+- The YAML subset rejected two valid-YAML constructs found in the wild:
+  `/` inside nested-map keys (product-audit) and block scalars under
+  nested-map entries (ai-first-process-redesign). Both are **fixed in
+  W3.2** (see `docs/w3.2-report.md`); the historical W3.1 counts in this
+  report are unchanged on purpose.
 - FM007 remains intentionally strict; residual keys (`version`, `author`,
   `cowork`, `disallowed-tools`) need a lead decision (§3).
 - The 10-repo sample is convenience-sampled (candidates fixed in the
