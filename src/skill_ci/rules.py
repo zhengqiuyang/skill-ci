@@ -20,6 +20,20 @@ DESC_JACCARD = 0.60            # DUP003 warning: token Jaccard over [a-z0-9]{3,}
 
 NAME_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$")
 
+# Claude Code frontmatter extension keys（2026-11 实测于公开 skill 仓库：
+# Jeffallan/claude-skills、jwilger/agent-skills）. Real skills legitimately
+# carry these keys, so they are accepted (no FM007) in addition to the
+# SKILL.md spec keys below. Kept as a separate frozenset so the source stays
+# documented and the extension surface stays reviewable.
+CLAUDE_CODE_EXTENSION_KEYS = frozenset({
+    "effort",
+    "compatibility",
+    "context",
+    "argument-hint",
+    "user-invocable",
+    "disable-model-invocation",
+})
+
 KNOWN_FRONTMATTER_KEYS = {
     "name",
     "description",
@@ -27,7 +41,7 @@ KNOWN_FRONTMATTER_KEYS = {
     "allowed-tools",
     "license",
     "metadata",
-}
+} | CLAUDE_CODE_EXTENSION_KEYS
 
 # ---------------------------------------------------------------------------
 # Noise-policy constants (documented, configurable; no repo-specific names).
@@ -124,6 +138,9 @@ RULE_CATALOG: dict[str, str] = {
     "FM005": "frontmatter is missing the required 'description' key",
     "FM006": "'description' must be a non-empty plain string",
     "FM007": "unknown frontmatter key (not part of the supported schema)",
+    "FM008": "nested metadata stored raw (a mapping two or more levels deep "
+    "under a frontmatter key is kept as an unparsed raw string; content is "
+    "not validated beyond capture)",
     "DQ001": "description too short (< 20 chars) to trigger reliably",
     "DQ002": "description contains generic filler phrasing",
     "DQ003": "description lacks trigger guidance ('use when ...')",
@@ -267,7 +284,23 @@ def check_frontmatter(doc: SkillDoc, findings: list[Finding]) -> None:
                 f"frontmatter line {line_no}: {note}",
                 "Rewrite the line as 'key: value'; one level of nested mapping is "
                 "supported (e.g. under 'metadata:'), deeper nesting is kept as a raw "
-                "string; anchors and flow mappings are unsupported.",
+                "string (FM008); anchors and flow mappings are unsupported.",
+            )
+        )
+    # FM008 (info): the parser accepts mappings two or more levels deep but
+    # does not fully parse them -- they are stored as a raw string. That is a
+    # capability limit, not an error, so it is reported at info level (never
+    # gates the exit code) and never as FM001.
+    for line_no, key_path in doc.raw_nested:
+        findings.append(
+            Finding(
+                "FM008",
+                "info",
+                doc.rel_path,
+                line_no,
+                f"nested metadata '{key_path}' (depth 2+) is stored as a raw "
+                "string, not fully parsed",
+                None,
             )
         )
 

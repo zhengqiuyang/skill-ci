@@ -50,6 +50,9 @@ class SkillDoc:
     frontmatter: dict[str, Any] = field(default_factory=dict)
     key_lines: dict[str, int] = field(default_factory=dict)
     parse_notes: list[tuple[int, str]] = field(default_factory=list)
+    # (line, "owner.subkey") for nested-map entries stored as a raw string
+    # (mapping depth 2+ under the entry); surfaced by rule FM008 (info).
+    raw_nested: list[tuple[int, str]] = field(default_factory=list)
     body: str = ""
     body_start_line: int = 1
     fm_close_line: int | None = None

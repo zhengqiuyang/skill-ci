@@ -22,7 +22,9 @@ Supported constructs (anything else is reported as a parse note, never guessed):
   coercion); entry keys are never validated against a whitelist -- rules
   decide whether subkeys matter. Nesting deeper than one level under an
   entry is allowed but stored as a raw string (one stripped line per row),
-  parsed no further -- never a crash.
+  parsed no further -- never a crash; each such raw-captured entry is
+  recorded on the doc (``SkillDoc.raw_nested``) and reported as FM008
+  (info) by the rules layer.
 - folded/literal block scalars (``key: >`` / ``>-`` / ``|`` / ``|-`` / ``>+`` / ``|+``)
 - indented plain continuation lines under ``key:`` (folded with spaces)
 - full-line ``#`` comments and blank lines
@@ -154,6 +156,7 @@ def _consume_map_entry(block: list[str], index: int, doc: SkillDoc, owner_key: s
                 return j
             # Deeper nesting (2+ levels) or any other indented content under an
             # empty entry value: allowed, stored as a raw string, not parsed.
+            # FM008 (info) later reports the capability limit per entry.
             raw_lines: list[str] = []
             while j < len(block):
                 raw3 = block[j]
@@ -167,6 +170,7 @@ def _consume_map_entry(block: list[str], index: int, doc: SkillDoc, owner_key: s
                     continue
                 break
             target[subkey] = "\n".join(raw_lines)
+            doc.raw_nested.append((line_no, f"{owner_key}.{subkey}"))
             return j
         target[subkey] = ""
         return j
