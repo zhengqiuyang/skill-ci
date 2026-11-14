@@ -1,10 +1,11 @@
 # W3 Report — whitelist, FM008, CI workflow, 10-repo scan, top-20 verification
 
-**Status: DRAFT for lead review.** Branch `feat/w3`, base HEAD `4689833`,
+**Status: published scan report.** Branch `feat/w3`, base HEAD `4689833`,
 W3.1 commits `04dc7c5` (feat parser), `43e99af` (test parser), `86e8950`
 (docs), `ecff9ea` (feat ci). 136 tests green (`PYTHONPATH=src python -m
 unittest discover -s tests`), `python -m compileall src` clean. Scan date:
-2026-11-14. Nothing was pushed and no issue/PR was filed.
+2026-11-14. Published as `zhengqiuyang/skill-ci` (`v0.1.0-alpha`); no
+issue/PR was filed and no maintainer was contacted.
 
 > **W3.2 follow-up (2026-11-14):** the blocking `example-gate` and the two
 > parser fixes named as W4 candidates in §6 are implemented; see
