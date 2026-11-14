@@ -49,6 +49,12 @@ TRIGGER_HINTS = (
     "should be used when",
     "if the user",
     "when the user",
+    # CJK equivalents (W2): a Chinese/Japanese description that says when to
+    # use the skill should not be flagged for lacking English guidance.
+    "当用户",
+    "当需要",
+    "适用于",
+    "何时使用",
 )
 
 RULE_CATALOG: dict[str, str] = {
@@ -63,7 +69,8 @@ RULE_CATALOG: dict[str, str] = {
     "DQ002": "description contains generic filler phrasing",
     "DQ003": "description lacks trigger guidance ('use when ...')",
     "DQ004": "description exceeds the 1024-char spec limit",
-    "TK001": "body exceeds 5000 estimated tokens (len(text)//4 heuristic)",
+    "TK001": "body exceeds 5000 estimated tokens (script-weighted heuristic: "
+    "ASCII 0.25, CJK 1.0, other 0.5 tokens/char)",
     "TK002": "body exceeds 15000 estimated tokens; move detail into reference files",
     "DUP001": "skill name used by more than one SKILL.md",
     "DUP002": "descriptions near-identical across skills (SequenceMatcher >= 0.85)",
@@ -322,7 +329,8 @@ def check_tokens(doc: SkillDoc, findings: list[Finding]) -> None:
                 "error",
                 doc.rel_path,
                 doc.body_start_line,
-                f"body is ~{tokens} estimated tokens (len//4 heuristic, > {HARD_BODY_TOKENS} "
+                f"body is ~{tokens} estimated tokens (script-weighted estimate, "
+                f"> {HARD_BODY_TOKENS} "
                 "hard limit); the whole file lands in context at once",
                 "Split the body: keep procedures short, move reference detail into linked files.",
             )
@@ -334,7 +342,8 @@ def check_tokens(doc: SkillDoc, findings: list[Finding]) -> None:
                 "warning",
                 doc.rel_path,
                 doc.body_start_line,
-                f"body is ~{tokens} estimated tokens (len//4 heuristic, > {MAX_BODY_TOKENS} "
+                f"body is ~{tokens} estimated tokens (script-weighted estimate, "
+                f"> {MAX_BODY_TOKENS} "
                 "recommended budget)",
                 "Trim or split the body into reference files loaded on demand.",
             )

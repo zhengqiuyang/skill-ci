@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from .tokens import estimate_tokens
+
 SEVERITY_ERROR = "error"
 SEVERITY_WARNING = "warning"
 SEVERITY_INFO = "info"
@@ -64,5 +66,10 @@ class SkillDoc:
 
     @property
     def body_tokens(self) -> int:
-        """Deterministic token estimate: ``len(text) // 4`` (documented heuristic)."""
-        return len(self.body) // 4
+        """Script-weighted token estimate (single shared口径; see skill_ci.tokens).
+
+        Pure ASCII stays exactly ``len(text) // 4`` (W1 behaviour); CJK
+        characters count ~1 token each instead of 1/4 (W1 underestimated
+        Chinese content by roughly 4x).
+        """
+        return estimate_tokens(self.body)
