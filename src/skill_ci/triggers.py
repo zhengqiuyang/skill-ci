@@ -52,7 +52,7 @@ from .tokens import estimate_tokens
 
 # --- documented predictor constants -------------------------------------
 # BM25 must beat this for a skill to be predicted. Calibrated on the
-# synthetic W2 suite (see docs/w2-report.md): one rare-term match with
+# synthetic W2 suite: one rare-term match with
 # df=1 in a 5-skill corpus scores ~1.39, generic shared words score < 0.6.
 BM25_TRIGGER_THRESHOLD = 1.0
 # Fallback rule fires only when BM25 stays below the threshold.

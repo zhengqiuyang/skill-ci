@@ -8,7 +8,7 @@ from difflib import SequenceMatcher
 from .model import SEVERITY_INFO, SEVERITY_WARNING, Finding, SkillDoc
 
 # ---------------------------------------------------------------------------
-# Thresholds (all documented in docs/w1-report.md)
+# Thresholds (documented in the rule catalog and README)
 # ---------------------------------------------------------------------------
 MAX_BODY_TOKENS = 5000         # TK001 warning: body above ~5k estimated tokens
 HARD_BODY_TOKENS = 15000       # TK002 error: body must be split / loaded on demand

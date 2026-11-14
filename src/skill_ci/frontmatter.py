@@ -32,7 +32,7 @@ Supported constructs (anything else is reported as a parse note, never guessed):
 - indented plain continuation lines under ``key:`` (folded with spaces)
 - full-line ``#`` comments and blank lines
 
-Known limitations (see docs/w1-report.md and docs/w2-report.md): no anchors
+Known limitations: no anchors
 or aliases, no inline comments, no flow mappings (``{a: b}``), single
 document only, at most one level of nested mappings. A ``key:`` with nothing
 under it parses as an empty list so that rules can flag it.

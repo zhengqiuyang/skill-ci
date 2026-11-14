@@ -42,7 +42,7 @@ Documented reference weights (tokens per character)
   for this tier (documented limitation, no skill corpus in scope uses
   them in bulk).
 
-Calibration status (honesty note, see docs/w2-report.md): this is a
+Calibration status (honesty note): this is a
 deterministic heuristic *self-consistency calibration* against the
 documented weights above; it is NOT a measured tokenizer accuracy. Real
 tokenizer validation is deferred to W3 (requires network access).

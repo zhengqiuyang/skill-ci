@@ -1,6 +1,6 @@
 """W2 token estimator tests: script-weighted calibration + CJK fixture.
 
-Calibration contract (documented in skill_ci/tokens.py and docs/w2-report.md):
+Calibration contract (documented in skill_ci/tokens.py):
 the estimator is calibrated against the *documented reference weights*
 (ASCII 0.25, CJK 1.0, other 0.5 tokens/char). Every mixed-content sample
 must agree with an independently recomputed weighted reference within 20%
