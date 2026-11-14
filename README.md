@@ -54,6 +54,25 @@ bin/skill-lint ./some-skill-repo --all-instances   # flat per-instance table (W1
 - JSON output is always instance-level.
 - Exit codes: `0` scan finished without error-severity findings; `1` scan
   finished with at least one error finding; `2` usage/IO error.
+- Frontmatter parser (minimal YAML subset, stdlib only): flat `key: value`
+  scalars, quoted values, inline/block lists, block scalars, comments, and —
+  since W3.0 — **one level of nested mapping** under any `key:` (notably
+  `metadata:`). Entry values stay plain strings (quoted values are stripped;
+  no type coercion); unknown `metadata:` subkeys are allowed and produce no
+  findings; top-level unknown keys stay FM007 (info). Nesting deeper than one
+  level under an entry is allowed but stored as a raw string; stray lines,
+  duplicate keys and anything else unrecognized still fail loudly as FM001.
+- Noise policy (configurable constants in `src/skill_ci/rules.py`, no
+  repo-specific names):
+  - **SEC002** — a credential-shaped string that is an obvious placeholder,
+    documentation example or test value (`your-*`, `example*`/`xxx`
+    substrings, `<...>` angle placeholders, `${...}` template references,
+    `test-*`, AWS docs sample key, ...) is downgraded from warning to info
+    (`SEC002_PLACEHOLDER_PREFIXES` / `SEC002_PLACEHOLDER_VALUES`);
+  - **FM004** — a name/directory mismatch under a scaffold-style directory
+    (`template(s)`, `example(s)`, `sample(s)`, `scaffold(s)`, `boilerplate`,
+    `_template(s)`) is downgraded from warning to info
+    (`FM004_TEMPLATE_DIR_MARKERS`).
 - Token estimates are script-weighted (ASCII 0.25 tokens/char — identical to
   the old `len//4` for pure ASCII —, CJK ideographs/kana/Hangul/CJK
   punctuation/fullwidth 1.0, other non-ASCII 0.5); see
@@ -106,7 +125,7 @@ Exit codes: `0` = suite ran (skill-test measures, it does not gate);
 ## Development
 
 ```sh
-PYTHONPATH=src python -m unittest discover -s tests   # 97 tests (W2)
+PYTHONPATH=src python -m unittest discover -s tests   # 126 tests (W3.0)
 python -m compileall src                              # must be clean
 ```
 
