@@ -1,0 +1,20 @@
+{"prompt": "Please convert this CSV export into an Excel workbook", "expected": "csv-to-excel"}
+{"prompt": "Turn my spreadsheet data into a formatted xlsx file", "expected": "csv-to-excel"}
+{"prompt": "Build a styled workbook from this csv", "expected": "csv-to-excel"}
+{"prompt": "I uploaded an invoice PDF, extract the total and date", "expected": "pdf-invoice"}
+{"prompt": "parse invoices from these scanned PDF documents", "expected": "pdf-invoice"}
+{"prompt": "extract the invoice number and total from the uploaded pdf", "expected": "pdf-invoice"}
+{"prompt": "write release notes for this milestone", "expected": "changelog-writer"}
+{"prompt": "generate a changelog from our commits", "expected": "changelog-writer"}
+{"prompt": "audit this repo for hardcoded api keys", "expected": "secret-scanner"}
+{"prompt": "check whether any credentials were committed", "expected": "secret-scanner"}
+{"prompt": "帮我解析这张中文发票的金额和税号", "expected": "cn-invoice"}
+{"prompt": "整理一下这些报销票据", "expected": "cn-invoice"}
+{"prompt": "read my billing document then pull out all amounts", "expected": "pdf-invoice"}
+{"prompt": "What's the weather like today?", "expected": null}
+{"prompt": "Tell me a joke about programmers", "expected": "none"}
+{"prompt": "Help me plan my vacation itinerary", "expected": null}
+{"prompt": "summarize this long article as three bullet points", "expected": "none"}
+{"prompt": "fix the flaky unit test in our CI pipeline", "expected": null}
+{"prompt": "what is the capital of Australia", "expected": "none"}
+{"prompt": "export the database table to a csv file", "expected": null}

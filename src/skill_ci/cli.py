@@ -17,6 +17,13 @@ from .render import render_json, render_markdown
 
 
 def main(argv: list[str] | None = None) -> int:
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if argv and argv[0] == "test":
+        # W2 skill-test subcommand: python -m skill_ci test <repo> --suite ...
+        from .test_cli import main as test_main
+
+        return test_main(argv[1:])
+
     parser = argparse.ArgumentParser(
         prog="skill-lint",
         description="Static linter for SKILL.md skill repositories (stdlib only).",
