@@ -17,6 +17,7 @@ Zero dependencies · no network · no LLM calls.</p>
 
 <p>
 <a href="#quick-start">Quick start</a> ·
+<a href="#ways">Ways to use</a> ·
 <a href="#rules">Rules</a> ·
 <a href="#skill-test">skill-test</a> ·
 <a href="#github-action">GitHub Action</a> ·
@@ -56,6 +57,18 @@ Exit codes: `0` = no error findings, `1` = at least one error finding,
 > The `bin/` launchers need no `pip install`: they locate the repository,
 > put `src/` on `PYTHONPATH`, and run from any working directory.
 > `pip install .` also provides `skill-lint` and `skill-test` console scripts.
+
+<a id="ways"></a>
+## Three ways to use it
+
+| You are | Run | You get |
+| --- | --- | --- |
+| Skill author | `bin/skill-lint ./skills` | `file:line` fixes before publishing |
+| Team | the reusable GitHub Action | a PR gate that fails on error findings |
+| Evaluator | `bin/skill-test ... --suite prompts.jsonl` | precision/recall plus FP/FN evidence |
+
+Every path uses the same rules and the same output format; pick the one that
+matches where you are in the lifecycle.
 
 ## Why skill-ci
 
