@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from difflib import SequenceMatcher
 
-from .model import Finding, SkillDoc
+from .model import SEVERITY_INFO, SEVERITY_WARNING, Finding, SkillDoc
 
 # ---------------------------------------------------------------------------
 # Thresholds (all documented in docs/w1-report.md)
@@ -28,6 +28,64 @@ KNOWN_FRONTMATTER_KEYS = {
     "license",
     "metadata",
 }
+
+# ---------------------------------------------------------------------------
+# Noise-policy constants (documented, configurable; no repo-specific names).
+# ---------------------------------------------------------------------------
+# SEC002: a credential-shaped string that is clearly a placeholder,
+# documentation example or test value is downgraded from warning to info.
+# Docs, tutorials and test fixtures legitimately contain such strings; they
+# are not real secret leakage. Checked against the matched credential value
+# (or the whole match for key-less patterns), lowercased.
+SEC002_PLACEHOLDER_PREFIXES = (
+    "your-",        # your-password-here / your_api_key
+    "your_",
+    "xxx",          # xxx, xxxx-xxxx (see also the substring check below)
+    "dummy",        # dummy-secret
+    "sample",       # sample-credential
+    "placeholder",  # placeholder-value
+    "changeme",     # changeme / changeme-123
+    "change-me",    # change-me-please
+    "test-",        # test-password
+    "test_",        # test_secret
+    "${",           # ${DB_PASSWORD} env-var template reference
+)
+SEC002_PLACEHOLDER_VALUES = frozenset({
+    "xxx",
+    "xxxx",
+    "test",
+    "dummy",
+    "sample",
+    "placeholder",
+    "changeme",
+    "change-me",
+    "redacted",
+    "none",
+    "null",
+    "n/a",
+    "password",
+    "password123",
+    "secret",
+    "token",
+    "<placeholder>",
+})
+# FM004: a name/directory mismatch under a scaffold-style directory is
+# expected content (the directory is a template for skills, not a skill
+# itself), so the finding is downgraded from warning to info. Matches any
+# directory component of the repo-relative skill path, case-insensitively.
+FM004_TEMPLATE_DIR_MARKERS = frozenset({
+    "template",
+    "templates",
+    "_template",
+    "_templates",
+    "example",
+    "examples",
+    "sample",
+    "samples",
+    "scaffold",
+    "scaffolds",
+    "boilerplate",
+})
 
 GENERIC_PHRASES = (
     "helps with",
@@ -61,7 +119,8 @@ RULE_CATALOG: dict[str, str] = {
     "FM001": "frontmatter missing, unclosed, or contains lines outside the supported YAML subset",
     "FM002": "frontmatter is missing the required 'name' key",
     "FM003": "'name' must be lowercase [a-z0-9-], max 64 chars, no leading/trailing hyphen",
-    "FM004": "'name' does not match the skill's parent directory name",
+    "FM004": "'name' does not match the skill's parent directory name "
+    "(downgraded to info under template/example-style directories)",
     "FM005": "frontmatter is missing the required 'description' key",
     "FM006": "'description' must be a non-empty plain string",
     "FM007": "unknown frontmatter key (not part of the supported schema)",
@@ -76,7 +135,8 @@ RULE_CATALOG: dict[str, str] = {
     "DUP002": "descriptions near-identical across skills (SequenceMatcher >= 0.85)",
     "DUP003": "descriptions overlap heavily; triggering scope may conflict (token Jaccard >= 0.60)",
     "SEC001": "dangerous destructive shell command in body",
-    "SEC002": "possible hardcoded credential/secret in body",
+    "SEC002": "possible hardcoded credential/secret in body "
+    "(placeholder/example/test values are downgraded to info)",
     "SEC003": "download-and-execute (pipe-to-shell / eval) pattern in body",
     "STRUCT001": "target directory contains no SKILL.md files",
     "STRUCT002": "SKILL.md file could not be read",
@@ -101,7 +161,8 @@ SEC001_RE = re.compile(
 SEC002_RE = re.compile(
     r"\bAKIA[0-9A-Z]{16}\b"
     r"|-----BEGIN [A-Z ]*PRIVATE KEY-----"
-    r"|\b(?:api[_-]?key|apikey|secret|password|passwd|token|access[_-]?key)\b\s*[:=]\s*[\"'][^\"'\s]{8,}[\"']"
+    # group(1) captures the quoted credential value for the placeholder check
+    r"|\b(?:api[_-]?key|apikey|secret|password|passwd|token|access[_-]?key)\b\s*[:=]\s*[\"']([^\"'\s]{8,})[\"']"
     r"|\bghp_[A-Za-z0-9]{20,}\b"
     r"|\bxox[baprs]-[A-Za-z0-9-]{10,}\b"
     r"|\bsk-[A-Za-z0-9]{20,}\b",
@@ -139,6 +200,39 @@ _SEC_PATTERNS: tuple[tuple[str, re.Pattern[str], str, str], ...] = (
 )
 
 _WORD_RE = re.compile(r"[a-z0-9]{3,}")
+
+
+def _is_placeholder_credential(value: str) -> bool:
+    """True when a SEC002 match is an obvious placeholder/example/test value.
+
+    Documented noise policy (see the SEC002_* constants above):
+    - exact placeholder values,
+    - values starting with a placeholder prefix (``your-*``, ``test-*``,
+      ``${...}`` template references, ...),
+    - values containing ``example`` (catches ``example-*`` strings and the
+      AWS documentation sample key ``AKIAIOSFODNN7EXAMPLE``) or ``xxx``,
+    - angle-bracket placeholders such as ``<test-password>``.
+    """
+    v = value.strip().strip("'\"").lower()
+    if not v:
+        return False
+    if v in SEC002_PLACEHOLDER_VALUES:
+        return True
+    if v.startswith(SEC002_PLACEHOLDER_PREFIXES):
+        return True
+    if "example" in v or "xxx" in v:
+        return True
+    if "<" in v and ">" in v:
+        return True
+    return False
+
+
+def _fm004_severity(rel_path: str) -> str:
+    """FM004 severity: info under template/example-style directories."""
+    for part in rel_path.split("/")[:-1]:
+        if part.lower() in FM004_TEMPLATE_DIR_MARKERS:
+            return SEVERITY_INFO
+    return SEVERITY_WARNING
 
 
 # ---------------------------------------------------------------------------
@@ -216,13 +310,20 @@ def check_frontmatter(doc: SkillDoc, findings: list[Finding]) -> None:
                     )
                 )
             if doc.dir_name and name_value != doc.dir_name:
+                severity = _fm004_severity(doc.rel_path)
+                suffix = (
+                    " (template/example directory; downgraded to info)"
+                    if severity == SEVERITY_INFO
+                    else ""
+                )
                 findings.append(
                     Finding(
                         "FM004",
-                        "warning",
+                        severity,
                         doc.rel_path,
                         name_line,
-                        f"'name' '{name_value}' does not match parent directory '{doc.dir_name}'",
+                        f"'name' '{name_value}' does not match parent directory "
+                        f"'{doc.dir_name}'{suffix}",
                         "Align the directory name with the 'name' field.",
                     )
                 )
@@ -355,18 +456,28 @@ def check_tokens(doc: SkillDoc, findings: list[Finding]) -> None:
 def check_security(doc: SkillDoc, findings: list[Finding]) -> None:
     for offset, line_text in enumerate(doc.body.splitlines()):
         for rule_id, pattern, message, fix in _SEC_PATTERNS:
-            if pattern.search(line_text):
-                snippet = line_text.strip()[:120]
-                findings.append(
-                    Finding(
-                        rule_id,
-                        "warning",
-                        doc.rel_path,
-                        doc.body_start_line + offset,
-                        f"{message}: {snippet}",
-                        fix,
-                    )
+            match = pattern.search(line_text)
+            if not match:
+                continue
+            severity = SEVERITY_WARNING
+            suffix = ""
+            if rule_id == "SEC002":
+                # placeholder/example/test credentials are downgraded to info
+                value = match.group(1) if match.group(1) is not None else match.group(0)
+                if _is_placeholder_credential(value):
+                    severity = SEVERITY_INFO
+                    suffix = " (placeholder/example value; downgraded to info)"
+            snippet = line_text.strip()[:120]
+            findings.append(
+                Finding(
+                    rule_id,
+                    severity,
+                    doc.rel_path,
+                    doc.body_start_line + offset,
+                    f"{message}: {snippet}{suffix}",
+                    fix,
                 )
+            )
 
 
 # ---------------------------------------------------------------------------

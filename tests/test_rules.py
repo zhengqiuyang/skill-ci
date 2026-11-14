@@ -233,6 +233,78 @@ class NestedMetadataRuleTests(RuleTestBase):
         self.assertEqual([f.line for f in findings], [4])
 
 
+class W3NoiseReductionTests(RuleTestBase):
+    """W3.0 noise policy: SEC002 placeholder/example/test credentials and
+    FM004 mismatches under template/example-style directories are info."""
+
+    def _write_body_skill(self, tmp, name, body):
+        skill_dir = Path(tmp) / name
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text(
+            "---\n"
+            f"name: {name}\n"
+            "description: Handles credentials. Use when secrets are configured.\n"
+            "---\n"
+            + body,
+            encoding="utf-8",
+        )
+
+    def test_placeholder_passwords_downgraded_to_info(self):
+        tmp = tempfile.mkdtemp(prefix="skillci-sec2ph-")
+        self.addCleanup(shutil.rmtree, tmp, True)
+        bodies = [
+            'self.user = User.objects.create_user("alice", password="<test-password>")\n',
+            'password: "your-password-here"\n',
+            'api_key = "example-key-123456"\n',
+            'token = "xxxxxxxxxx"\n',
+            'secret = "test-secret-value"\n',
+            'password = "${DB_PASSWORD}"\n',
+        ]
+        for i, body in enumerate(bodies):
+            self._write_body_skill(tmp, f"sec-placeholder-{i}", body)
+        _, findings = lint_path(Path(tmp))
+        sec002 = [f for f in findings if f.rule_id == "SEC002"]
+        self.assertEqual(len(sec002), len(bodies))
+        self.assertTrue(all(f.severity == "info" for f in sec002))
+        self.assertTrue(all("downgraded to info" in f.message for f in sec002))
+        # info findings never trip the error-gated exit code
+        self.assertFalse(any(f.severity == "error" for f in findings))
+
+    def test_aws_documentation_example_key_downgraded_to_info(self):
+        tmp = tempfile.mkdtemp(prefix="skillci-sec2aws-")
+        self.addCleanup(shutil.rmtree, tmp, True)
+        self._write_body_skill(tmp, "sec-aws-doc", "aws_access_key_id = AKIAIOSFODNN7EXAMPLE\n")
+        _, findings = lint_path(Path(tmp))
+        sec002 = [f for f in findings if f.rule_id == "SEC002"]
+        self.assertEqual([f.severity for f in sec002], ["info"])
+
+    def test_real_secret_stays_warning(self):
+        tmp = tempfile.mkdtemp(prefix="skillci-sec2real-")
+        self.addCleanup(shutil.rmtree, tmp, True)
+        self._write_body_skill(tmp, "sec-real", 'api_key = "sk-live-0123456789abcdef"\n')
+        _, findings = lint_path(Path(tmp))
+        sec002 = [f for f in findings if f.rule_id == "SEC002"]
+        self.assertEqual([f.severity for f in sec002], ["warning"])
+
+    def test_template_directory_mismatch_downgraded_to_info(self):
+        _, findings = self.lint_selection("template")
+        fm004 = [f for f in findings if f.rule_id == "FM004"]
+        self.assertEqual(len(fm004), 1)
+        self.assertEqual(fm004[0].severity, "info")
+        self.assertIn("template/example directory", fm004[0].message)
+
+    def test_noise_policy_is_configured_constants(self):
+        from skill_ci import rules
+
+        # documented, configurable constants -- not hardcoded repo names
+        self.assertIn("your-", rules.SEC002_PLACEHOLDER_PREFIXES)
+        self.assertIn("test-", rules.SEC002_PLACEHOLDER_PREFIXES)
+        self.assertIn("<placeholder>", rules.SEC002_PLACEHOLDER_VALUES)
+        for marker in ("template", "templates", "example", "examples"):
+            self.assertIn(marker, rules.FM004_TEMPLATE_DIR_MARKERS)
+        self.assertTrue(all(m.islower() for m in rules.FM004_TEMPLATE_DIR_MARKERS))
+
+
 class StructureTests(RuleTestBase):
     def test_empty_target_reports_struct001(self):
         tmp = tempfile.mkdtemp(prefix="skillci-empty-")
