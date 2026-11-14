@@ -8,7 +8,7 @@ install required to run, no network at runtime, no LLM calls.
 
 | tool | what it does |
 | --- | --- |
-| `skill-lint` | static linter for SKILL.md: frontmatter (FM00x), description quality (DQ00x), token budget (TK001/TK002), cross-skill duplicates (DUP00x), security hints (SEC00x), structure (STRUCT00x) — 21 rules |
+| `skill-lint` | static linter for SKILL.md: frontmatter (FM00x), description quality (DQ00x), token budget (TK001/TK002), cross-skill duplicates (DUP00x), security hints (SEC00x), structure (STRUCT00x) — 22 rules |
 | `skill-test` | trigger-prediction evaluation: given a labeled `prompts.jsonl` suite, predicts which skill each prompt would trigger (deterministic BM25 + fallback) and reports precision/recall/FP/FN with per-term evidence |
 
 ## Running without installing (bin launchers)
@@ -60,8 +60,17 @@ bin/skill-lint ./some-skill-repo --all-instances   # flat per-instance table (W1
   `metadata:`). Entry values stay plain strings (quoted values are stripped;
   no type coercion); unknown `metadata:` subkeys are allowed and produce no
   findings; top-level unknown keys stay FM007 (info). Nesting deeper than one
-  level under an entry is allowed but stored as a raw string; stray lines,
-  duplicate keys and anything else unrecognized still fail loudly as FM001.
+  level under an entry is allowed but stored as a raw string — reported as
+  **FM008 (info, "nested metadata stored raw")** since W3.1, never FM001;
+  stray lines, duplicate keys and anything else unrecognized still fail
+  loudly as FM001.
+- Known frontmatter keys = the SKILL.md spec keys (`name`, `description`,
+  `when_to_use`, `allowed-tools`, `license`, `metadata`) plus the Claude
+  Code frontmatter extension keys（2026-11 实测于公开 skill 仓库）:
+  `effort`, `compatibility`, `context`, `argument-hint`, `user-invocable`,
+  `disable-model-invocation` (`CLAUDE_CODE_EXTENSION_KEYS` in
+  `src/skill_ci/rules.py`). Extension keys are accepted, not FM007; FM008
+  reports any depth-2+ mapping the parser keeps as a raw string.
 - Noise policy (configurable constants in `src/skill_ci/rules.py`, no
   repo-specific names):
   - **SEC002** — a credential-shaped string that is an obvious placeholder,
@@ -125,7 +134,7 @@ Exit codes: `0` = suite ran (skill-test measures, it does not gate);
 ## Development
 
 ```sh
-PYTHONPATH=src python -m unittest discover -s tests   # 126 tests (W3.0)
+PYTHONPATH=src python -m unittest discover -s tests   # 136 tests (W3.1)
 python -m compileall src                              # must be clean
 ```
 
