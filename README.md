@@ -1,19 +1,34 @@
-# skill-ci
+<div align="center">
 
-Static CI for agent skills.
+<h1>skill-ci</h1>
 
-`skill-lint` checks a `SKILL.md` repository for spec violations, oversized
-skills, duplicate or conflicting descriptions, and risky patterns.
-`skill-test` measures whether your descriptions actually trigger on the
-prompts they should.
+<p><strong>Catch broken, bloated, and conflicting agent skills before they ship.</strong></p>
 
-Zero runtime dependencies (Python 3.11+ standard library only). No network,
-no LLM calls, no code execution. Runs from a checkout and ships as a GitHub
-Action.
+<p>Static lint and trigger evaluation for <code>SKILL.md</code> repositories.<br/>
+Zero dependencies · no network · no LLM calls.</p>
 
+<p>
+<a href="https://github.com/zhengqiuyang/skill-ci/actions/workflows/skill-ci.yml"><img src="https://github.com/zhengqiuyang/skill-ci/actions/workflows/skill-ci.yml/badge.svg" alt="CI"></a>
+<a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&amp;logoColor=white" alt="Python 3.11+"></a>
+<a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License"></a>
+</p>
+
+<p><code>pip install .</code> &nbsp;or&nbsp; <code>bin/skill-lint examples/skills</code></p>
+
+<p>
+<a href="#quick-start">Quick start</a> ·
+<a href="#rules">Rules</a> ·
+<a href="#skill-test">skill-test</a> ·
+<a href="#github-action">GitHub Action</a> ·
+<a href="#limits">Limits</a>
+</p>
+
+</div>
+
+<a id="quick-start"></a>
 ## Quick start
 
-POSIX / Git Bash:
+Run it on the bundled example — no install, no config:
 
 ```sh
 bin/skill-lint examples/skills
@@ -37,26 +52,38 @@ bin/skill-lint /path/to/your/skills --format json --out report.json
 Exit codes: `0` = no error findings, `1` = at least one error finding,
 `2` = usage/IO error.
 
-## Install
+> [!TIP]
+> The `bin/` launchers need no `pip install`: they locate the repository,
+> put `src/` on `PYTHONPATH`, and run from any working directory.
+> `pip install .` also provides `skill-lint` and `skill-test` console scripts.
 
-No install is needed. The `bin/` launchers locate the repository, put `src/`
-on `PYTHONPATH`, and run the tool:
+## Why skill-ci
 
-| POSIX / Git Bash | Windows cmd.exe |
-| --- | --- |
-| `bin/skill-lint <repo>` | `bin\skill-lint.cmd <repo>` |
-| `bin/skill-test <repo> --suite prompts.jsonl` | `bin\skill-test.cmd <repo> --suite prompts.jsonl` |
+- **Broken frontmatter breaks registration.** A missing `name` or an invalid
+  name makes name-based tooling fall back to the directory name or skip the
+  skill.
+- **Oversized skills tax every turn.** A skill that loads 26k tokens into
+  context is expensive even when it is the right skill.
+- **Bad descriptions fail silently.** Generic or overlapping descriptions
+  route prompts to the wrong skill, and nothing in a normal session tells you.
 
-Or install the console scripts:
+`skill-ci` turns those three failure modes into deterministic checks you can
+run locally or in CI.
 
-```sh
-pip install .
-skill-lint examples/skills
-skill-test tests/fixtures/skilltest-repo --suite tests/fixtures/skilltest-suite/prompts.jsonl
+## How it works
+
+```mermaid
+flowchart LR
+  A[SKILL.md repo] --> B[skill-lint]
+  B --> C{error findings?}
+  C -- no --> D[exit 0]
+  C -- yes --> E[file:line + fix]
 ```
 
-Python 3.11 or newer.
+`skill-test` is the second check: it indexes each skill's trigger metadata and
+measures whether the right skill fires for a labeled prompt suite.
 
+<a id="rules"></a>
 ## What `skill-lint` checks
 
 22 deterministic rules in six groups:
@@ -79,10 +106,11 @@ fix hint. Markdown groups findings by rule; JSON keeps every instance.
 bin/skill-lint <repo> [--format markdown|json] [--out FILE] [--all-instances]
 ```
 
-- Default Markdown groups findings by rule and lists affected `file:line`s.
-- `--format json` emits instance-level data for CI/dashboards.
-- `--out FILE` writes the report to a file instead of stdout.
-- `--all-instances` expands the Markdown report to one row per finding.
+| Flag | Effect |
+| --- | --- |
+| `--format json` | instance-level output for CI or dashboards |
+| `--out FILE` | write the report to a file instead of stdout |
+| `--all-instances` | expand the Markdown report to one row per finding |
 
 Example:
 
@@ -105,6 +133,7 @@ Example:
 No findings. All checks passed.
 ```
 
+<a id="skill-test"></a>
 ## `skill-test`: does the right skill trigger?
 
 ```sh
@@ -146,6 +175,7 @@ Run the bundled example:
 bin/skill-test tests/fixtures/skilltest-repo --suite tests/fixtures/skilltest-suite/prompts.jsonl
 ```
 
+<a id="github-action"></a>
 ## GitHub Action
 
 Call the reusable workflow from your own repository:
@@ -168,7 +198,12 @@ The workflow runs the blocking lint on Ubuntu and Windows with Python 3.12.
 also runs a non-blocking smoke test over its intentionally malformed fixtures,
 so a red fixture job does not block a PR.
 
+<a id="limits"></a>
 ## Scope and limits
+
+> [!NOTE]
+> These are deliberate scope choices, not unknowns. They keep the tool fast,
+> deterministic, and safe to run on untrusted repositories.
 
 - **Static checks only.** It reads `SKILL.md` files as text; it does not
   execute skill code or call a model.
@@ -180,9 +215,6 @@ so a red fixture job does not block a PR.
 - **The YAML subset is deliberately small.** Common frontmatter is parsed;
   unsupported constructs are reported loudly (`FM001`/`FM008`), never
   silently guessed.
-
-These are deliberate trade-offs: deterministic output, no network, no code
-execution, and safe scanning of untrusted repositories.
 
 ## Development
 
