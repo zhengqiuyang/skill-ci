@@ -220,7 +220,7 @@ Most interesting findings per repo:
    snapshot channel, same untrusted-data handling).
 6. Test/temp hygiene: W2 runs export `TEMP/TMP/TMPDIR=D:\tmp\w2` —
    Python's default temp resolution would otherwise place test scratch
-   dirs on C: (Git Bash maps /tmp to C:\Users\Admin\AppData\Local\Temp).
+   dirs on C: (Git Bash maps /tmp to %TEMP% on Windows).
    README documents this for future runs. All W2-era writes (repo, .scratch,
    temp) are on D:.
 7. One extra `chore(lint)` commit for the skill-test launchers (they were

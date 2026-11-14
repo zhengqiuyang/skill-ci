@@ -4,6 +4,12 @@ Static CI tooling for agent-skill (SKILL.md) repositories.
 Zero runtime dependencies (Python standard library only, >= 3.11), no pip
 install required to run, no network at runtime, no LLM calls.
 
+> **Status: experimental alpha.** Static text checks only — this is not a
+> runtime test of a skill. The repository is a work artifact, not a
+> maintained product: no outreach, no support commitment. The 10-repo scan
+> in `docs/w3-report.md` is a convenience sample, not a prevalence study;
+> read its "honest positioning" and known-limitations sections first.
+
 ## What's inside
 
 | tool | what it does |
